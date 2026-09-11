@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/gm_surface_canvas"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/gm_surface"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="14dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@android:color/transparent"
+            android:src="@drawable/ic_back_arrow" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif-medium"
+            android:text="Settings"
+            android:textColor="@color/gm_on_surface"
+            android:textSize="18sp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- SENSOR CALIBRATION -->
+            <TextView style="@style/SettingsSectionHeader" android:text="SENSOR CALIBRATION" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_white_16" android:orientation="vertical" android:padding="4dp">
+
+                <LinearLayout android:id="@+id/rowMountingYaw" style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeBlue">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_nav_logo" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Mounting yaw calibration" />
+                        <TextView android:id="@+id/tvMountingYawValue" style="@style/SettingsRowSubtitle" android:text="Auto-detected: 0.0°" />
+                    </LinearLayout>
+                    <ImageView style="@style/SettingsChevron" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout android:id="@+id/rowRecalibrate" style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeBlue">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_history" app:tint="@color/gm_primary" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Recalibrate IMU now" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="Best while driving on the map screen" />
+                    </LinearLayout>
+                    <ImageView style="@style/SettingsChevron" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeGreen">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_check_circle" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Auto-recalibration" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="Every ~30s while driving" />
+                    </LinearLayout>
+                    <Switch android:id="@+id/switchAutoRecalibration" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- DEAD RECKONING -->
+            <TextView style="@style/SettingsSectionHeader" android:text="DEAD RECKONING" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_white_16" android:orientation="vertical" android:padding="4dp">
+
+                <LinearLayout android:id="@+id/rowZupt" style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeBlue">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_check_circle" app:tint="@color/gm_primary" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="ZUPT sensitivity" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="Zero-velocity update threshold" />
+                    </LinearLayout>
+                    <TextView android:id="@+id/tvZuptValue" style="@style/SettingsRowValue" android:text="Medium" />
+                    <ImageView style="@style/SettingsChevron" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeBlue">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_location_pin" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Map-matching snap" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="Snap AI position to nearest road" />
+                    </LinearLayout>
+                    <Switch android:id="@+id/switchMapMatching" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeOrange">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_nav_logo" app:tint="@color/gm_dr_orange" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Simulate GPS outage in testing" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="Use the toggle on the map screen" />
+                    </LinearLayout>
+                    <Switch android:id="@+id/switchSimulateOutage" android:layout_width="wrap_content" android:layout_height="wrap_content" android:enabled="false" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- MAP DISPLAY -->
+            <TextView style="@style/SettingsSectionHeader" android:text="MAP DISPLAY" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_white_16" android:orientation="vertical" android:padding="4dp">
+
+                <LinearLayout style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeBlue">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_check_circle" app:tint="@color/gm_primary" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Show accuracy circle" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="Display GPS uncertainty radius on the map" />
+                    </LinearLayout>
+                    <Switch android:id="@+id/switchAccuracyCircle" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout android:id="@+id/rowDistanceUnits" style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeBlue">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_history" app:tint="@color/gm_primary" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Distance units" />
+                    </LinearLayout>
+                    <TextView android:id="@+id/tvDistanceUnitsValue" style="@style/SettingsRowValue" android:text="Kilometers" />
+                    <ImageView style="@style/SettingsChevron" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout android:id="@+id/rowMapTheme" style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeBlue">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_settings_gear" app:tint="@color/gm_primary" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Map theme" />
+                    </LinearLayout>
+                    <TextView android:id="@+id/tvMapThemeValue" style="@style/SettingsRowValue" android:text="System default" />
+                    <ImageView style="@style/SettingsChevron" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ABOUT -->
+            <TextView style="@style/SettingsSectionHeader" android:text="ABOUT" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_white_16" android:orientation="vertical" android:padding="4dp"
+                android:layout_marginBottom="24dp">
+
+                <LinearLayout style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeBlue">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_check_circle" app:tint="@color/gm_primary" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Model version" />
+                    </LinearLayout>
+                    <TextView style="@style/SettingsRowValue" android:text="ONNX Runtime 1.19.2" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout android:id="@+id/rowEngineInfo" style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeGreen">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_nav_logo" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Sensor fusion engine info" />
+                    </LinearLayout>
+                    <ImageView style="@style/SettingsChevron" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout android:id="@+id/rowPrivacy" style="@style/SettingsRow">
+                    <FrameLayout style="@style/SettingsIconBadgeBlue">
+                        <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_lock_outline" app:tint="@color/gm_primary" />
+                    </FrameLayout>
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="Privacy — on-device processing" />
+                    </LinearLayout>
+                    <ImageView style="@style/SettingsChevron" />
+                </LinearLayout>
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

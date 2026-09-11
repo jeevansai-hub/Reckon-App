@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_bottom_sheet"
+    android:orientation="vertical"
+    android:paddingBottom="12dp">
+
+    <View
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_gesture_bar" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp">
+
+        <TextView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_avatar_circle"
+            android:gravity="center"
+            android:text="R"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:text="Reckon AI"
+                android:textColor="@color/gm_on_surface"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Dead Reckoning Navigator"
+                android:textColor="@color/gm_on_surface_variant"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View style="@style/SettingsDivider" />
+
+    <LinearLayout android:id="@+id/menuLiveMap" style="@style/SettingsRow">
+        <FrameLayout style="@style/SettingsIconBadgeBlue">
+            <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_location_pin" />
+        </FrameLayout>
+        <LinearLayout style="@style/SettingsRowText">
+            <TextView style="@style/SettingsRowTitle" android:text="Live Map" />
+            <TextView style="@style/SettingsRowSubtitle" android:text="Active dead-reckoning trajectory" />
+        </LinearLayout>
+        <ImageView style="@style/SettingsChevron" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/menuTripHistory" style="@style/SettingsRow">
+        <FrameLayout style="@style/SettingsIconBadgeOrange">
+            <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_bn_history" app:tint="@color/gm_dr_orange" />
+        </FrameLayout>
+        <LinearLayout style="@style/SettingsRowText">
+            <TextView style="@style/SettingsRowTitle" android:text="Trip History" />
+            <TextView style="@style/SettingsRowSubtitle" android:text="Past logs, outages &amp; drift stats" />
+        </LinearLayout>
+        <ImageView style="@style/SettingsChevron" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/menuSettings" style="@style/SettingsRow">
+        <FrameLayout style="@style/SettingsIconBadgeBlue">
+            <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_bn_settings" app:tint="@color/gm_on_surface_variant" />
+        </FrameLayout>
+        <LinearLayout style="@style/SettingsRowText">
+            <TextView style="@style/SettingsRowTitle" android:text="Settings" />
+            <TextView style="@style/SettingsRowSubtitle" android:text="Sensors, ZUPT &amp; map preferences" />
+        </LinearLayout>
+        <ImageView style="@style/SettingsChevron" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/menuBenchmarks" style="@style/SettingsRow">
+        <FrameLayout style="@style/SettingsIconBadgeGreen">
+            <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_check_circle" />
+        </FrameLayout>
+        <LinearLayout style="@style/SettingsRowText">
+            <TextView style="@style/SettingsRowTitle" android:text="Run Benchmarks" />
+            <TextView style="@style/SettingsRowSubtitle" android:text="Kalman filter &amp; IMU latency tests" />
+        </LinearLayout>
+        <ImageView style="@style/SettingsChevron" />
+    </LinearLayout>
+
+    <View style="@style/SettingsDivider" />
+
+    <LinearLayout android:id="@+id/menuAbout" style="@style/SettingsRow">
+        <FrameLayout style="@style/SettingsIconBadgeGreen">
+            <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_check_circle" />
+        </FrameLayout>
+        <LinearLayout style="@style/SettingsRowText">
+            <TextView style="@style/SettingsRowTitle" android:text="About Reckon AI" />
+            <TextView style="@style/SettingsRowSubtitle" android:text="v2.3.1 ONNX · Privacy &amp; telemetry" />
+        </LinearLayout>
+        <ImageView style="@style/SettingsChevron" />
+    </LinearLayout>
+
+</LinearLayout>

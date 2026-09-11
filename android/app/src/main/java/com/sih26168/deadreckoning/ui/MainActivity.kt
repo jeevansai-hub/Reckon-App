@@ -17,6 +17,7 @@ import android.location.Location
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
@@ -45,6 +46,9 @@ import com.sih26168.deadreckoning.sensor.MountingYawCalibrator
 import com.sih26168.deadreckoning.test.OnnxVerificationActivity
 import com.sih26168.deadreckoning.mapmatching.LightweightMapMatcher
 import com.sih26168.deadreckoning.mapmatching.OverpassRoadProvider
+import com.sih26168.deadreckoning.onboarding.AppPrefs
+import com.sih26168.deadreckoning.settings.SettingsActivity
+import com.sih26168.deadreckoning.trip.TripSummaryActivity
 import com.sih26168.deadreckoning.util.GeoProjection
 import com.sih26168.deadreckoning.util.GpsDisplaySmoother
 import com.sih26168.deadreckoning.util.LatLng
@@ -98,6 +102,28 @@ class MainActivity : AppCompatActivity() {
         // Below this, dead reckoning is started from a state the pipeline has
         // no way to validate is genuinely "moving" -- see toggleGpsOutageMode().
         private const val OUTAGE_START_MIN_SPEED_MS = 1.5 // ~5.4 km/h
+
+        // --- Automatic GPS-loss detection ---
+        // Replaces relying on the manual button for real-world use; the button
+        // still works (manual simulate/restore for demo purposes), but these
+        // checks drive the same toggleGpsOutageMode() transition on their own.
+        //
+        // No fix received for this long -> treat the feed as dead (tunnel,
+        // underground parking, OS doze killing updates, etc). This is the
+        // PRIMARY signal: LocationCallback just stops firing in this case,
+        // there's no explicit "lost" event to listen for.
+        private const val GPS_STALE_FIX_TIMEOUT_MS = 5_000L
+        // Hysteresis band on reported fix accuracy: enter outage once a fix
+        // IS arriving but is this poor, only exit once back under the tighter
+        // GOOD threshold. Avoids flapping right at a single cutoff value.
+        private const val GPS_BAD_ACCURACY_M = 50f
+        private const val GPS_GOOD_ACCURACY_M = 20f
+        // Consecutive bad/good 1Hz health checks required before acting --
+        // debounces a single noisy fix or a single dropped update so the
+        // EKF's bias calibration/resync logic doesn't get re-triggered on noise.
+        private const val GPS_BAD_STREAK_TO_ENTER_OUTAGE = 3
+        private const val GPS_GOOD_STREAK_TO_EXIT_OUTAGE = 3
+        private const val GPS_HEALTH_CHECK_INTERVAL_MS = 1_000L
     }
 
     private lateinit var mapView: MapView
@@ -139,10 +165,58 @@ class MainActivity : AppCompatActivity() {
 
     // Outage Simulation State
     private var isGpsOutageMode = false
+    // Wall-clock moment the outage started -- calendar-meaningful, used only
+    // for the persisted Trip History timestamp (AppPrefs.OutageEvent.startTimeMs).
+    // NOT used to compute duration: System.currentTimeMillis() can jump
+    // (NTP resync, timezone/DST change, user editing the clock), which would
+    // make an elapsed-time calculation based on it skip or run backwards.
     private var outageStartTimeMs: Long = 0L
+    // Monotonic boot-clock moment the outage started (SystemClock.elapsedRealtime()).
+    // Immune to wall-clock adjustments -- this is what every *duration*
+    // calculation below uses (the live HUD ticker, the resync log, the
+    // persisted event's durationMs, cumulativeOutageDurationMs).
+    private var outageStartElapsedMs: Long = 0L
     private var outageDistanceTraveledM: Float = 0.0f
+    // Real GPS path length accumulated between "Simulate GPS Loss" and
+    // "Restore GPS Signal" clicks, i.e. what GPS itself says the vehicle
+    // travelled over the same window outageDistanceTraveledM (AI-DR) covers.
+    // Real fixes still arrive in the background during outage mode (used as
+    // ground truth elsewhere); this just sums consecutive-fix distances
+    // instead of only comparing start vs. end separation.
+    private var outageGpsDistanceTraveledM: Float = 0.0f
+    private var prevOutageGpsLocation: Location? = null
+    // Real GPS lat/lon at the moment the current outage started -- captured
+    // once, for the Trip History event record (see AppPrefs.OutageEvent).
+    private var outageStartLat: Double = 0.0
+    private var outageStartLon: Double = 0.0
     private val uiHandler = Handler(Looper.getMainLooper())
     private var outageTimerRunnable: Runnable? = null
+
+    // Automatic GPS-loss detection state -- see checkGpsHealth().
+    private var lastFixTimestampMs: Long = 0L
+    private var gpsBadStreak = 0
+    private var gpsGoodStreak = 0
+    // True only when the CURRENT outage was entered by the watchdog itself,
+    // not via the manual button. Gates auto-exit so a manually-triggered demo
+    // outage (started while real GPS is fine, for testing) isn't immediately
+    // auto-resynced out from under the user.
+    private var isAutoDetectedOutage = false
+    // Blocks the watchdog from re-firing toggleGpsOutageMode() while a
+    // transition (esp. the 1.8s exit resync animation) is still in flight.
+    private var outageTransitionInProgress = false
+    private var gpsHealthRunnable: Runnable? = null
+
+    // Trip Summary bookkeeping -- persisted to AppPrefs for TripSummaryActivity
+    // to read; see persistTripStatsSnapshot().
+    private var sessionStartMs: Long = System.currentTimeMillis()
+    private var cumulativeOutageDurationMs: Long = 0L
+    private var lastDriftSeparationM: Float = 0.0f
+
+    // Accuracy circle overlay (Settings > Map Display > "Show accuracy circle").
+    // Read once at startup -- Settings runs in a separate Activity so a change
+    // there takes effect on the next launch of this screen, not live.
+    private var showAccuracyCircle = true
+    private var accuracyCirclePolygon: org.osmdroid.views.overlay.Polygon? = null
 
     // osmdroid Markers & Polylines
     private var gpsMarker: Marker? = null
@@ -170,9 +244,21 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvAiMotion: TextView
     private lateinit var tvDriftDistance: TextView
     private lateinit var tvWindowCount: TextView
+    private lateinit var tvOutageDistanceCompare: TextView
     private lateinit var btnToggleGpsOutage: MaterialButton
     private lateinit var btnResetOrigin: Button
     private lateinit var btnVerifyTests: Button
+    private lateinit var tvSearchLabelRef: TextView
+
+    private val searchLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val query = result.data?.getStringExtra(SearchActivity.EXTRA_QUERY)
+        if (result.resultCode == RESULT_OK && !query.isNullOrBlank()) {
+            tvSearchLabelRef.text = query
+            tvSearchLabelRef.setTextColor(Color.parseColor("#202124"))
+        }
+    }
     private lateinit var llGpsColumn: LinearLayout
     private lateinit var llAiColumn: LinearLayout
 
@@ -199,11 +285,72 @@ class MainActivity : AppCompatActivity() {
         tvAiMotion = findViewById(R.id.tvAiMotion)
         tvDriftDistance = findViewById(R.id.tvDriftDistance)
         tvWindowCount = findViewById(R.id.tvWindowCount)
+        tvOutageDistanceCompare = findViewById(R.id.tvOutageDistanceCompare)
         btnToggleGpsOutage = findViewById(R.id.btnToggleGpsOutage)
         btnResetOrigin = findViewById(R.id.btnResetOrigin)
         btnVerifyTests = findViewById(R.id.btnVerifyTests)
         llGpsColumn = findViewById(R.id.llGpsColumn)
         llAiColumn = findViewById(R.id.llAiColumn)
+
+        // Settings > Map Display > "Show accuracy circle" -- read once per launch.
+        showAccuracyCircle = AppPrefs.isShowAccuracyCircleEnabled(this)
+        isMapMatchingEnabled = AppPrefs.isMapMatchingSnapEnabled(this)
+
+        // Bottom navigation bar: Map (this screen) / Trip History / Settings
+        findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottomNav)
+            .setOnItemSelectedListener { item ->
+                when (item.itemId) {
+                    R.id.navTripHistory -> {
+                        persistTripStatsSnapshot()
+                        startActivity(Intent(this, TripSummaryActivity::class.java))
+                        false // stay on Map tab visually; this just launches the screen
+                    }
+                    R.id.navSettings -> {
+                        persistTripStatsSnapshot()
+                        startActivity(Intent(this, SettingsActivity::class.java))
+                        false
+                    }
+                    else -> true
+                }
+            }
+
+        // Bottom sheet (Google Maps "home card" style): tap the drag handle to
+        // reveal the detailed GPS/AI telemetry columns; collapsed by default
+        // so the peek only shows the title + primary action.
+        val expandableDetails = findViewById<View>(R.id.expandableDetails)
+        val expandChevron = findViewById<android.widget.ImageView>(R.id.ivExpandChevron)
+        findViewById<View>(R.id.dragHandleRow).setOnClickListener {
+            val expanding = expandableDetails.visibility != View.VISIBLE
+            expandableDetails.visibility = if (expanding) View.VISIBLE else View.GONE
+            expandChevron.rotation = if (expanding) 180f else 0f
+        }
+
+        // Right-side FAB rail
+        findViewById<View>(R.id.fabRecenter).setOnClickListener { resetOriginToCurrentLocation() }
+        findViewById<View>(R.id.fabLayers).setOnClickListener {
+            showAccuracyCircle = !showAccuracyCircle
+            if (!showAccuracyCircle) accuracyCirclePolygon?.isEnabled = false
+            mapView.invalidate()
+            Toast.makeText(this, if (showAccuracyCircle) "Accuracy circle on" else "Accuracy circle off", Toast.LENGTH_SHORT).show()
+        }
+
+        // Search bar: tapping it opens the full-screen Search UI; the picked
+        // result label is shown back in the search bar (no routing backend
+        // in this prototype, but the interaction is real).
+        tvSearchLabelRef = findViewById(R.id.tvSearchLabel)
+        findViewById<View>(R.id.searchBarRow).setOnClickListener {
+            searchLauncher.launch(Intent(this, SearchActivity::class.java))
+        }
+        findViewById<View>(R.id.btnMic).setOnClickListener {
+            Toast.makeText(this, "Voice search coming soon", Toast.LENGTH_SHORT).show()
+        }
+        findViewById<View>(R.id.tvAvatar).setOnClickListener {
+            persistTripStatsSnapshot()
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        // Hamburger menu: Google Maps style navigation drawer bottom sheet
+        findViewById<View>(R.id.btnMenu).setOnClickListener { showNavMenu() }
 
         // Initialize HUD to clean GPS-active standby state
         llAiColumn.alpha = 0.6f
@@ -260,6 +407,11 @@ class MainActivity : AppCompatActivity() {
         // 7. Initialize Lightweight Map-Matching Layer (Display only)
         roadProvider = OverpassRoadProvider(this)
         mapMatcher = LightweightMapMatcher(roadSegments = roadProvider.getActiveSegments())
+
+        // 8. Start automatic GPS-loss watchdog (see checkGpsHealth()). Runs
+        // for the whole activity lifetime; the manual button still works
+        // alongside it for demo/testing.
+        startGpsHealthWatchdog()
     }
 
     private fun setupOsmMapView() {
@@ -304,6 +456,50 @@ class MainActivity : AppCompatActivity() {
         }
         aiMarker = aiMark
         mapView.overlays.add(aiMark)
+
+        // Settings > Map Display > "Show accuracy circle": translucent blue
+        // disc around the GPS marker, radius = the fix's reported accuracy.
+        // Always created (regardless of the initial flag) so the map-screen
+        // FAB toggle can turn it on later even if Settings had it off.
+        val circle = org.osmdroid.views.overlay.Polygon(mapView).apply {
+            fillPaint.color = Color.parseColor("#334285F4")
+            outlinePaint.color = Color.parseColor("#4285F4")
+            outlinePaint.strokeWidth = 2f
+            isEnabled = false
+        }
+        accuracyCirclePolygon = circle
+        mapView.overlays.add(0, circle) // draw beneath markers/polylines
+    }
+
+    /** Rebuilds the accuracy-circle polygon points around [center] for the given radius. */
+    private fun updateAccuracyCircle(center: GeoPoint, radiusMeters: Double) {
+        val circle = accuracyCirclePolygon ?: return
+        if (!showAccuracyCircle || radiusMeters <= 0.0) {
+            circle.isEnabled = false
+            return
+        }
+        val points = ArrayList<GeoPoint>(37)
+        for (i in 0..36) {
+            val bearing = i * 10.0
+            points.add(centerPointAt(center, radiusMeters, bearing))
+        }
+        circle.points = points
+        circle.isEnabled = true
+    }
+
+    /** Offsets [origin] by [distanceMeters] along compass [bearingDeg] (equirectangular approx, fine at this scale). */
+    private fun centerPointAt(origin: GeoPoint, distanceMeters: Double, bearingDeg: Double): GeoPoint {
+        val earthRadius = 6371000.0
+        val bearingRad = Math.toRadians(bearingDeg)
+        val lat1 = Math.toRadians(origin.latitude)
+        val lon1 = Math.toRadians(origin.longitude)
+        val angularDistance = distanceMeters / earthRadius
+        val lat2 = Math.asin(Math.sin(lat1) * Math.cos(angularDistance) + Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearingRad))
+        val lon2 = lon1 + Math.atan2(
+            Math.sin(bearingRad) * Math.sin(angularDistance) * Math.cos(lat1),
+            Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
+        )
+        return GeoPoint(Math.toDegrees(lat2), Math.toDegrees(lon2))
     }
 
     private fun createMarkerDrawable(fillColor: Int, strokeColor: Int, sizeDp: Int = 22): Drawable {
@@ -381,6 +577,36 @@ class MainActivity : AppCompatActivity() {
      */
     private fun onGpsLocationUpdated(location: Location) {
         lastGpsLocation = location
+
+        // Feed the auto-loss watchdog: a fix arrived, so staleness resets;
+        // its accuracy tells us whether this fix itself is trustworthy.
+        // See checkGpsHealth() for the timeout-based staleness check, which
+        // is the dominant real-world trigger (no fix arriving at all).
+        lastFixTimestampMs = System.currentTimeMillis()
+        when {
+            location.accuracy > GPS_BAD_ACCURACY_M -> { gpsBadStreak++; gpsGoodStreak = 0 }
+            location.accuracy < GPS_GOOD_ACCURACY_M -> { gpsGoodStreak++; gpsBadStreak = 0 }
+            // else: accuracy sits in the hysteresis dead zone -- leave streaks as-is
+        }
+
+        // Real GPS path-length tracking for the outage-vs-AI-DR km comparison
+        // (see outageGpsDistanceTraveledM doc comment). Sums consecutive-fix
+        // distances rather than just start-to-end separation, so it reflects
+        // the actual driven path length, same as outageDistanceTraveledM does
+        // for the AI-DR side.
+        if (isGpsOutageMode) {
+            val prev = prevOutageGpsLocation
+            if (prev != null) {
+                val results = FloatArray(1)
+                Location.distanceBetween(prev.latitude, prev.longitude, location.latitude, location.longitude, results)
+                outageGpsDistanceTraveledM += results[0]
+            }
+            prevOutageGpsLocation = location
+            // Already on the main thread (fusedLocationClient callback uses
+            // Looper.getMainLooper()) -- no runOnUiThread needed here.
+            updateOutageDistanceCompare()
+        }
+
         val geoPoint = GeoPoint(location.latitude, location.longitude)
         // Trail point defaults to the raw fix (first-fix branch: identical to
         // the smoothed anchor anyway); reassigned in the else branch below so
@@ -429,6 +655,7 @@ class MainActivity : AppCompatActivity() {
             }
             gpsMarker?.position = smoothedGeoPoint
             trailGeoPoint = smoothedGeoPoint
+            updateAccuracyCircle(smoothedGeoPoint, location.accuracy.toDouble())
             if (!isGpsOutageMode) {
                 // Keep PositionEstimator continuously snapped/synced to real GPS fix (Requirement 1)
                 val oLat = originLat ?: return
@@ -496,7 +723,7 @@ class MainActivity : AppCompatActivity() {
                 navState.correctionFailed -> "0.00m (MODEL INFERENCE FAILED, see correctionModel.lastFailure)"
                 else -> "${String.format("%.2f", navState.deltaS_corr)}m"
             }
-            val elapsedS = (System.currentTimeMillis() - outageStartTimeMs) / 1000f
+            val elapsedS = (SystemClock.elapsedRealtime() - outageStartElapsedMs) / 1000f
             val logMsg = "[GPS_LOST_MODE][LEGACY C1 COMPARE] Window #$windowCount (Outage: ${String.format("%.1f", elapsedS)}s) | " +
                     "True GPS: (${String.format("%.6f", gps?.latitude ?: 0.0)}, ${String.format("%.6f", gps?.longitude ?: 0.0)}) | " +
                     "C1 AI-DR: (${String.format("%.6f", aiLat)}, ${String.format("%.6f", aiLon)}) | " +
@@ -555,6 +782,7 @@ class MainActivity : AppCompatActivity() {
         // then feeds bad accel into dead reckoning for the whole next outage.
         if (result.calibrated && result.correlation > YAW_CALIB_MIN_CORRELATION && maxGpsSpeed >= YAW_CALIB_MIN_SPEED_MS) {
             sensorCollector.mountingYawRad = result.thetaRad.toFloat()
+            AppPrefs.setLastMountingYawDeg(this, Math.toDegrees(result.thetaRad).toFloat())
             Log.i(TAG_POSITION, "MOUNTING YAW recalibrated: theta=${String.format("%.1f", Math.toDegrees(result.thetaRad))}deg " +
                 "corr=${String.format("%.3f", result.correlation)} (from ${snapshot.size} GPS-active samples, maxSpeed=${String.format("%.1f", maxGpsSpeed)}m/s)")
         } else {
@@ -585,7 +813,9 @@ class MainActivity : AppCompatActivity() {
                 yawSamplesSinceRecalibration++
                 if (yawSamplesSinceRecalibration >= YAW_RECALIBRATION_INTERVAL_SAMPLES) {
                     yawSamplesSinceRecalibration = 0
-                    recalibrateMountingYaw()
+                    if (AppPrefs.isAutoRecalibrationEnabled(this)) {
+                        recalibrateMountingYaw()
+                    }
                 }
             }
             return
@@ -637,7 +867,26 @@ class MainActivity : AppCompatActivity() {
             tvAiMotion.text = "Speed: ${String.format("%.1f", aiSpeedKmh)} km/h | ψ: ${String.format("%.1f", snapshot.headingDeg)}°" +
                 (if (snapshot.isMapMatched) " [map-matched]" else "")
             updateSeparationAndDrift()
+            updateOutageDistanceCompare()
         }
+    }
+
+    /**
+     * Refreshes tvOutageDistanceCompare with the real-GPS-path-length vs
+     * AI-DR-path-length comparison for the CURRENT (or just-ended) outage,
+     * in both km (3 decimals = meter precision) and the raw meter delta.
+     * Driven from both sides independently: onGpsLocationUpdated (real GPS
+     * fixes) and onNewImuSampleReceived (AI-DR samples) each call this after
+     * updating their own accumulator, so whichever source just moved is
+     * reflected immediately rather than waiting on the other.
+     */
+    private fun updateOutageDistanceCompare() {
+        val gpsM = outageGpsDistanceTraveledM
+        val aiM = outageDistanceTraveledM
+        val deltaM = kotlin.math.abs(aiM - gpsM)
+        tvOutageDistanceCompare.text = "GPS: ${String.format("%.3f", gpsM / 1000f)} km " +
+            "(${String.format("%.0f", gpsM)} m) | AI-DR: ${String.format("%.3f", aiM / 1000f)} km " +
+            "(${String.format("%.0f", aiM)} m) | Δ ${String.format("%.0f", deltaM)} m"
     }
 
     /**
@@ -652,6 +901,11 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Waiting for initial GPS fix...", Toast.LENGTH_SHORT).show()
             return
         }
+
+        // Blocks the watchdog from re-firing while this transition is still
+        // in flight (esp. the 1.8s exit resync animation below); cleared at
+        // the end of whichever branch runs.
+        outageTransitionInProgress = true
 
         if (!isGpsOutageMode && gps.speed < OUTAGE_START_MIN_SPEED_MS) {
             // Not a hard block -- EkfPositionEstimator's pre-motion hard lock
@@ -671,7 +925,14 @@ class MainActivity : AppCompatActivity() {
             // =========================================================================
             isGpsOutageMode = true
             outageStartTimeMs = System.currentTimeMillis()
+            outageStartElapsedMs = SystemClock.elapsedRealtime()
             outageDistanceTraveledM = 0.0f
+            outageGpsDistanceTraveledM = 0.0f
+            prevOutageGpsLocation = gps
+            outageStartLat = gps.latitude
+            outageStartLon = gps.longitude
+            tvOutageDistanceCompare.visibility = View.VISIBLE
+            updateOutageDistanceCompare()
 
             // 1. Clean snap of PositionEstimator state to true current GPS values
             val (gpsEast, gpsNorth) = GeoProjection.latLonToEnu(gps.latitude, gps.longitude, oLat, oLon)
@@ -722,12 +983,12 @@ class MainActivity : AppCompatActivity() {
             gpsMarker?.title = "Ground Truth Reference (GPS - Inactive)"
 
             // 3. Update Controls & HUD
-            btnToggleGpsOutage.text = "RESTORE GPS SIGNAL"
+            btnToggleGpsOutage.text = "Restore GPS Signal"
             btnToggleGpsOutage.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#2E7D32")) // Green
             btnToggleGpsOutage.setIconResource(android.R.drawable.ic_menu_compass)
 
             tvGpsStatusBadge.text = "MODE: GPS LOST - AI DR"
-            tvGpsStatusBadge.setBackgroundColor(Color.parseColor("#D32F2F")) // Red
+            tvGpsStatusBadge.setTextColor(Color.parseColor("#D32F2F")) // Red
 
             llOutageBanner.visibility = View.VISIBLE
             tvOutageBannerText.text = "⚠️ GPS LOST: AI ESTIMATING"
@@ -746,6 +1007,11 @@ class MainActivity : AppCompatActivity() {
             Log.i(TAG_POSITION, "GPS OUTAGE SIMULATED: State cleanly snapped to GPS (lat=${gps.latitude}, lon=${gps.longitude}, speed=${trueVelocity}m/s, heading=${gps.bearing}°)")
             Toast.makeText(this, "GNSS Outage Simulated: AI Dead Reckoning is now Authoritative", Toast.LENGTH_SHORT).show()
 
+            // Fresh start for the watchdog's own judgment of this new state.
+            gpsBadStreak = 0
+            gpsGoodStreak = 0
+            outageTransitionInProgress = false
+
         } else {
             // =========================================================================
             // TRANSITION TO: GPS ACTIVE (SMOOTH RESYNCHRONIZATION)
@@ -754,7 +1020,7 @@ class MainActivity : AppCompatActivity() {
 
             val aiCurrentGeo = aiMarker?.position ?: GeoPoint(gps.latitude, gps.longitude)
             val realGpsGeo = GeoPoint(gps.latitude, gps.longitude)
-            val elapsedOutageS = (System.currentTimeMillis() - outageStartTimeMs) / 1000f
+            val elapsedOutageS = (SystemClock.elapsedRealtime() - outageStartElapsedMs) / 1000f
 
             // Compute Euclidean correction distance in meters
             val results = FloatArray(1)
@@ -773,16 +1039,53 @@ class MainActivity : AppCompatActivity() {
                         "Correction Distance: ${String.format("%.2f", correctionDistanceM)}m | " +
                         "Outage Duration: ${String.format("%.1f", elapsedOutageS)}s"
             )
+            // Path-length comparison (distinct from correctionDistanceM above,
+            // which is the start/end-point separation, not distance travelled):
+            // how far the real GPS track actually ran vs. how far AI-DR thinks
+            // it ran, over the same outage window.
+            Log.i(
+                TAG_POSITION,
+                "OUTAGE PATH LENGTH: GPS=${String.format("%.1f", outageGpsDistanceTraveledM)}m " +
+                        "(${String.format("%.3f", outageGpsDistanceTraveledM / 1000f)}km) | " +
+                        "AI-DR=${String.format("%.1f", outageDistanceTraveledM)}m " +
+                        "(${String.format("%.3f", outageDistanceTraveledM / 1000f)}km) | " +
+                        "Δ=${String.format("%.1f", kotlin.math.abs(outageDistanceTraveledM - outageGpsDistanceTraveledM))}m"
+            )
+            updateOutageDistanceCompare()
+
+            // Trip History record for this GPS-loss cycle -- final values are
+            // already settled at this point (animateResync below only moves
+            // the marker visually, it doesn't touch any of these numbers).
+            AppPrefs.addOutageEvent(
+                this,
+                AppPrefs.OutageEvent(
+                    startTimeMs = outageStartTimeMs,
+                    endTimeMs = System.currentTimeMillis(),
+                    durationMs = (elapsedOutageS * 1000).toLong(),
+                    startLat = outageStartLat,
+                    startLon = outageStartLon,
+                    endGpsLat = realGpsGeo.latitude,
+                    endGpsLon = realGpsGeo.longitude,
+                    endAiLat = aiCurrentGeo.latitude,
+                    endAiLon = aiCurrentGeo.longitude,
+                    gpsDistanceM = outageGpsDistanceTraveledM,
+                    aiDistanceM = outageDistanceTraveledM,
+                    correctionDistanceM = correctionDistanceM
+                )
+            )
 
             // Update UI to indicate resynchronization in progress
             tvGpsStatusBadge.text = "RESYNCING..."
-            tvGpsStatusBadge.setBackgroundColor(Color.parseColor("#F57C00")) // Orange
+            tvGpsStatusBadge.setTextColor(Color.parseColor("#F57C00")) // Orange
             tvOutageBannerText.text = "🔄 RESYNCING: Correcting ${String.format("%.1f", correctionDistanceM)}m drift..."
 
             // Smoothly animate the AI marker from its DR position to the true GPS position over 1.8 seconds
             animateResync(aiMarker, aiCurrentGeo, realGpsGeo, durationMs = 1800L) {
                 isGpsOutageMode = false
                 ekfEstimator.stopOutage()
+                cumulativeOutageDurationMs += (elapsedOutageS * 1000).toLong()
+                lastDriftSeparationM = correctionDistanceM
+                persistTripStatsSnapshot()
 
                 // 1. Hide AI-DR marker and polyline (Requirements 1 & 3)
                 aiMarker?.isEnabled = false
@@ -808,12 +1111,12 @@ class MainActivity : AppCompatActivity() {
                 )
 
                 // 4. Restore controls & HUD
-                btnToggleGpsOutage.text = "SIMULATE GPS LOSS"
+                btnToggleGpsOutage.text = "Simulate GPS Loss"
                 btnToggleGpsOutage.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#D32F2F")) // Red
                 btnToggleGpsOutage.setIconResource(android.R.drawable.ic_dialog_alert)
 
                 tvGpsStatusBadge.text = "MODE: LIVE GPS"
-                tvGpsStatusBadge.setBackgroundColor(Color.parseColor("#2E7D32")) // Green
+                tvGpsStatusBadge.setTextColor(Color.parseColor("#2E7D32")) // Green
                 llOutageBanner.visibility = View.GONE
 
                 llAiColumn.alpha = 0.6f
@@ -826,6 +1129,12 @@ class MainActivity : AppCompatActivity() {
                 mapView.controller.animateTo(realGpsGeo)
                 mapView.invalidate()
                 Toast.makeText(this@MainActivity, "GPS Restored: Smoothly resynced (${String.format("%.1f", correctionDistanceM)}m corrected)", Toast.LENGTH_SHORT).show()
+
+                // Fresh start for the watchdog's own judgment of this new state.
+                gpsBadStreak = 0
+                gpsGoodStreak = 0
+                isAutoDetectedOutage = false
+                outageTransitionInProgress = false
             }
         }
     }
@@ -898,7 +1207,7 @@ class MainActivity : AppCompatActivity() {
         outageTimerRunnable = object : Runnable {
             override fun run() {
                 if (isGpsOutageMode) {
-                    val elapsedS = (System.currentTimeMillis() - outageStartTimeMs) / 1000f
+                    val elapsedS = (SystemClock.elapsedRealtime() - outageStartElapsedMs) / 1000f
                     tvOutageTimer.text = "Outage: ${String.format("%.1f", elapsedS)}s"
                     updateSeparationAndDrift()
                     uiHandler.postDelayed(this, 500L)
@@ -911,6 +1220,53 @@ class MainActivity : AppCompatActivity() {
     private fun stopOutageTimerTicker() {
         outageTimerRunnable?.let { uiHandler.removeCallbacks(it) }
         outageTimerRunnable = null
+    }
+
+    /**
+     * 1Hz watchdog for automatic GPS-loss detection. Runs continuously (both
+     * GPS-active and outage mode) from onCreate to onDestroy.
+     *
+     * The dominant real-world case -- fixes simply stop arriving (tunnel,
+     * underground parking, doze) -- has no callback to listen for, so this
+     * polls wall-clock time since the last fix instead. Accuracy-based
+     * degradation (fixes still arriving but poor) is caught immediately in
+     * onGpsLocationUpdated's streak update; this just acts on both streaks
+     * on the same 1Hz cadence toggleGpsOutageMode()'s UI ticker already uses.
+     */
+    private fun checkGpsHealth() {
+        if (lastFixTimestampMs == 0L) return // no fix yet -- nothing to judge staleness against
+        if (outageTransitionInProgress) return // let an in-flight toggle finish first
+
+        val ageMs = System.currentTimeMillis() - lastFixTimestampMs
+        if (ageMs > GPS_STALE_FIX_TIMEOUT_MS) {
+            gpsBadStreak++
+            gpsGoodStreak = 0
+        }
+
+        if (!isGpsOutageMode && gpsBadStreak >= GPS_BAD_STREAK_TO_ENTER_OUTAGE) {
+            Log.w(TAG_POSITION, "AUTO-DETECTED GPS loss (badStreak=$gpsBadStreak, fixAge=${ageMs}ms) -- switching to AI dead reckoning")
+            isAutoDetectedOutage = true
+            toggleGpsOutageMode()
+        } else if (isGpsOutageMode && isAutoDetectedOutage && gpsGoodStreak >= GPS_GOOD_STREAK_TO_EXIT_OUTAGE) {
+            Log.i(TAG_POSITION, "AUTO-DETECTED GPS recovery (goodStreak=$gpsGoodStreak) -- resyncing to GPS")
+            toggleGpsOutageMode()
+        }
+    }
+
+    private fun startGpsHealthWatchdog() {
+        stopGpsHealthWatchdog()
+        gpsHealthRunnable = object : Runnable {
+            override fun run() {
+                checkGpsHealth()
+                uiHandler.postDelayed(this, GPS_HEALTH_CHECK_INTERVAL_MS)
+            }
+        }
+        uiHandler.post(gpsHealthRunnable!!)
+    }
+
+    private fun stopGpsHealthWatchdog() {
+        gpsHealthRunnable?.let { uiHandler.removeCallbacks(it) }
+        gpsHealthRunnable = null
     }
 
     /**
@@ -943,6 +1299,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateSeparationAndDrift() {
         if (isGpsOutageMode) {
             val (separationM, driftPct) = computeDriftMetrics()
+            lastDriftSeparationM = separationM
             tvDriftDistance.text = "Outage Drift: ${String.format("%.1f", separationM)} m (${String.format("%.2f", driftPct)}%)"
         } else {
             tvDriftDistance.text = "Drift: 0.0 m (GPS Active)"
@@ -1010,6 +1367,19 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         mapView.onResume()
+
+        // TripSummaryActivity's "Start New Trip" button sets this one-shot flag;
+        // pick it up here and reset the running trip counters.
+        if (AppPrefs.consumeNewTripRequest(this)) {
+            sessionStartMs = System.currentTimeMillis()
+            totalDistanceTraveledM = 0.0f
+            outageDistanceTraveledM = 0.0f
+            cumulativeOutageDurationMs = 0L
+            lastDriftSeparationM = 0.0f
+            windowCount = 0
+            persistTripStatsSnapshot()
+            Toast.makeText(this, "New trip started", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onPause() {
@@ -1019,10 +1389,65 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        persistTripStatsSnapshot()
         stopOutageTimerTicker()
+        stopGpsHealthWatchdog()
         fusedLocationClient.removeLocationUpdates(locationCallback)
         sensorCollector.stop()
         correctionModel.close()
         velocityModel.close()
+    }
+
+    /** Google Maps style hamburger-menu bottom sheet: Live Map / Trip History / Settings / Benchmarks / About. */
+    private fun showNavMenu() {
+        val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+        val sheetView = layoutInflater.inflate(R.layout.menu_bottom_sheet, null)
+        dialog.setContentView(sheetView)
+
+        sheetView.findViewById<View>(R.id.menuLiveMap).setOnClickListener { dialog.dismiss() }
+        sheetView.findViewById<View>(R.id.menuTripHistory).setOnClickListener {
+            dialog.dismiss()
+            persistTripStatsSnapshot()
+            startActivity(Intent(this, TripSummaryActivity::class.java))
+        }
+        sheetView.findViewById<View>(R.id.menuSettings).setOnClickListener {
+            dialog.dismiss()
+            persistTripStatsSnapshot()
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        sheetView.findViewById<View>(R.id.menuBenchmarks).setOnClickListener {
+            dialog.dismiss()
+            startActivity(Intent(this, OnnxVerificationActivity::class.java))
+        }
+        sheetView.findViewById<View>(R.id.menuAbout).setOnClickListener {
+            dialog.dismiss()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("About Reckon AI")
+                .setMessage(
+                    "Reckon AI v1.0\nGPS + IMU dead-reckoning navigation.\n\n" +
+                        "Fuses GNSS with a 6-axis IMU through an Extended Kalman Filter, " +
+                        "ONNX-based correction/velocity models, zero-velocity updates, and " +
+                        "lightweight map-matching. All sensor computation runs on-device."
+                )
+                .setPositiveButton("Got it", null)
+                .show()
+        }
+        dialog.show()
+    }
+
+    /**
+     * Snapshots the current session's stats into AppPrefs so TripSummaryActivity
+     * (a separate Activity) can display them. Called on outage resync, on
+     * Settings/Trip History navigation, and on destroy.
+     */
+    private fun persistTripStatsSnapshot() {
+        AppPrefs.saveTripStats(
+            context = this,
+            totalDistanceM = totalDistanceTraveledM,
+            durationMs = System.currentTimeMillis() - sessionStartMs,
+            outageDurationMs = cumulativeOutageDurationMs,
+            outageDistanceM = outageDistanceTraveledM,
+            lastDriftM = lastDriftSeparationM
+        )
     }
 }

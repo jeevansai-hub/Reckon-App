@@ -16,16 +16,47 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DeadReckoningApp">
 
-        <!-- Main Live Map & Dual Marker Navigation Activity (osmdroid) -->
+        <!-- App entry point: boot checklist splash, then onboarding (first run) or straight to the map -->
         <activity
-            android:name="com.sih26168.deadreckoning.ui.MainActivity"
+            android:name="com.sih26168.deadreckoning.onboarding.SplashActivity"
             android:exported="true"
-            android:theme="@style/Theme.DeadReckoningApp">
+            android:theme="@style/Theme.ReckonAI.Light">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="com.sih26168.deadreckoning.onboarding.OnboardingActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ReckonAI.Light" />
+
+        <activity
+            android:name="com.sih26168.deadreckoning.onboarding.PermissionsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ReckonAI.Light" />
+
+        <activity
+            android:name="com.sih26168.deadreckoning.settings.SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ReckonAI.Light" />
+
+        <activity
+            android:name="com.sih26168.deadreckoning.trip.TripSummaryActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ReckonAI.Light" />
+
+        <activity
+            android:name="com.sih26168.deadreckoning.ui.SearchActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ReckonAI.Light" />
+
+        <!-- Main Live Map & Dual Marker Navigation Activity (osmdroid) -->
+        <activity
+            android:name="com.sih26168.deadreckoning.ui.MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DeadReckoningApp" />
 
         <!-- Benchmark Verification Dashboard -->
         <activity

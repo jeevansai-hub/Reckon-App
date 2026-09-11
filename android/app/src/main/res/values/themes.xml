@@ -10,4 +10,16 @@
         <item name="colorSecondaryVariant">#018786</item>
         <item name="colorOnSecondary">#000000</item>
     </style>
+
+    <!-- Google Maps style light theme used by the onboarding/settings/trip flow -->
+    <style name="Theme.ReckonAI.Light" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/gm_primary</item>
+        <item name="colorPrimaryVariant">@color/gm_primary_dark</item>
+        <item name="colorOnPrimary">@color/gm_surface</item>
+        <item name="colorSecondary">@color/gm_dr_orange</item>
+        <item name="colorOnSecondary">@color/gm_surface</item>
+        <item name="android:windowBackground">@color/gm_surface</item>
+        <item name="android:statusBarColor">@color/gm_surface</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>

@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/gm_surface_canvas"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/gm_surface"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="14dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@android:color/transparent"
+            android:src="@drawable/ic_back_arrow" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif-medium"
+            android:text="Trip Summary"
+            android:textColor="@color/gm_on_surface"
+            android:textSize="18sp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Trip control card: always visible, Start New Trip / End Trip -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/bg_card_white_16"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvTripStatus"
+                        style="@style/SettingsRowTitle"
+                        android:text="No active trip" />
+
+                    <TextView
+                        android:id="@+id/tvTripStatusSubtitle"
+                        style="@style/SettingsRowSubtitle"
+                        android:text="Start a trip to begin recording stats" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnStartEndTrip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_pill_blue"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:text="Start New Trip"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvEmptyState"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:gravity="center"
+                android:text="No trips recorded yet.\nOpen the live map and start driving to record a trip."
+                android:textColor="@color/gm_on_surface_variant"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/contentGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Hero stat card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_card_white_16"
+                    android:orientation="horizontal"
+                    android:padding="18dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <TextView android:id="@+id/tvTotalDistance" style="@style/SettingsRowTitle" android:textSize="22sp" android:text="0.0 km" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="TOTAL DISTANCE" />
+                    </LinearLayout>
+
+                    <View android:layout_width="1dp" android:layout_height="match_parent" android:background="@color/gm_divider" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <TextView android:id="@+id/tvDuration" style="@style/SettingsRowTitle" android:textSize="22sp" android:text="0 min" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="DURATION" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- 2x2 grid -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal">
+
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:layout_marginEnd="6dp" android:background="@drawable/bg_card_light_16" android:orientation="vertical" android:padding="14dp">
+                        <TextView android:id="@+id/tvOutageTime" style="@style/SettingsRowTitle" android:textColor="@color/gm_dr_orange" android:text="0s" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="GPS outage time" />
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:layout_marginStart="6dp" android:background="@drawable/bg_card_light_16" android:orientation="vertical" android:padding="14dp">
+                        <TextView android:id="@+id/tvOnGpsPct" style="@style/SettingsRowTitle" android:textColor="@color/gm_primary_dark" android:text="100%" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="Trip on GPS" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal">
+
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:layout_marginEnd="6dp" android:background="@drawable/bg_card_light_16" android:orientation="vertical" android:padding="14dp">
+                        <TextView android:id="@+id/tvAvgDrift" style="@style/SettingsRowTitle" android:textColor="@color/gm_dr_orange" android:text="0.0 m" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="Drift during outage" />
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:layout_marginStart="6dp" android:background="@drawable/bg_card_light_16" android:orientation="vertical" android:padding="14dp">
+                        <TextView android:id="@+id/tvAccuracyLabel" style="@style/SettingsRowTitle" android:textColor="@color/gm_success_green" android:text="Excellent" />
+                        <TextView style="@style/SettingsRowSubtitle" android:text="Overall accuracy" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Coverage breakdown -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_card_white_16"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView style="@style/SettingsSectionHeader" android:layout_marginTop="0dp" android:text="SIGNAL COVERAGE BREAKDOWN" />
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="10dp"
+                        android:layout_marginTop="8dp">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/bg_dot_active" />
+
+                        <View
+                            android:id="@+id/coverageOrangeSegment"
+                            android:layout_width="20dp"
+                            android:layout_height="match_parent"
+                            android:layout_gravity="end"
+                            android:background="@drawable/bg_pill_blue"
+                            android:backgroundTint="@color/gm_dr_orange" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:id="@+id/tvCoverageCaption"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="GPS-tracked vs AI dead-reckoning distance"
+                        android:textColor="@color/gm_on_surface_variant"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- GPS Outage Events: one card per Simulate GPS Loss -> Restore
+                     GPS Signal cycle this trip, most recent first. Populated by
+                     TripSummaryActivity.renderOutageEvents() from
+                     AppPrefs.getOutageEvents(); items are item_outage_event.xml. -->
+                <TextView
+                    style="@style/SettingsSectionHeader"
+                    android:layout_marginTop="20dp"
+                    android:text="GPS OUTAGE EVENTS" />
+
+                <TextView
+                    android:id="@+id/tvNoOutageEvents"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="No GPS-loss events recorded this trip."
+                    android:textColor="@color/gm_on_surface_variant"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/llOutageEventsList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
+
+                <Button
+                    android:id="@+id/btnExport"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="20dp"
+                    android:background="@drawable/bg_pill_outline_blue"
+                    android:drawableStart="@drawable/ic_download"
+                    android:drawablePadding="8dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="Export trip data"
+                    android:textAllCaps="false"
+                    android:textColor="@color/gm_primary_dark"
+                    android:textSize="14sp" />
+
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

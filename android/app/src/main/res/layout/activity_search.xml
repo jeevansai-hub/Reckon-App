@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="10dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@android:color/transparent"
+            android:src="@drawable/ic_back_arrow" />
+
+        <EditText
+            android:id="@+id/etSearchQuery"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="Search a place or address"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textColor="@color/gm_on_surface"
+            android:textColorHint="@color/gm_on_surface_variant"
+            android:textSize="16sp" />
+
+        <ImageButton
+            android:id="@+id/btnClear"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="@android:color/transparent"
+            android:src="@drawable/ic_expand_more"
+            android:rotation="0"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/gm_divider" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView style="@style/SettingsSectionHeader" android:layout_marginTop="0dp" android:text="RECENT" />
+
+            <LinearLayout android:id="@+id/rowRecent1" style="@style/SettingsRow" android:paddingStart="0dp" android:paddingEnd="0dp">
+                <ImageView style="@style/SettingsIconSmall" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_bn_history" app:tint="@color/gm_on_surface_variant" xmlns:app="http://schemas.android.com/apk/res-auto" />
+                <LinearLayout style="@style/SettingsRowText">
+                    <TextView style="@style/SettingsRowTitle" android:text="Yerba Buena Tunnel" />
+                    <TextView style="@style/SettingsRowSubtitle" android:text="I-80 W · AI-DR Dead Reckoning Route" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <View style="@style/SettingsDivider" android:layout_marginStart="0dp" android:layout_marginEnd="0dp" />
+
+            <LinearLayout android:id="@+id/rowRecent2" style="@style/SettingsRow" android:paddingStart="0dp" android:paddingEnd="0dp">
+                <ImageView style="@style/SettingsIconSmall" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_bn_history" app:tint="@color/gm_on_surface_variant" xmlns:app="http://schemas.android.com/apk/res-auto" />
+                <LinearLayout style="@style/SettingsRowText">
+                    <TextView style="@style/SettingsRowTitle" android:text="Salesforce Tower" />
+                    <TextView style="@style/SettingsRowSubtitle" android:text="415 Mission St, San Francisco, CA" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <View style="@style/SettingsDivider" android:layout_marginStart="0dp" android:layout_marginEnd="0dp" />
+
+            <LinearLayout android:id="@+id/rowRecent3" style="@style/SettingsRow" android:paddingStart="0dp" android:paddingEnd="0dp">
+                <ImageView style="@style/SettingsIconSmall" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_bn_history" app:tint="@color/gm_on_surface_variant" xmlns:app="http://schemas.android.com/apk/res-auto" />
+                <LinearLayout style="@style/SettingsRowText">
+                    <TextView style="@style/SettingsRowTitle" android:text="San Francisco Intl. Airport (SFO)" />
+                    <TextView style="@style/SettingsRowSubtitle" android:text="San Francisco, CA 94128" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView style="@style/SettingsSectionHeader" android:text="SUGGESTED" />
+
+            <LinearLayout android:id="@+id/rowSetHome" style="@style/SettingsRow" android:paddingStart="0dp" android:paddingEnd="0dp">
+                <FrameLayout style="@style/SettingsIconBadgeBlue">
+                    <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_location_pin" />
+                </FrameLayout>
+                <LinearLayout style="@style/SettingsRowText">
+                    <TextView style="@style/SettingsRowTitle" android:text="Set home address" />
+                    <TextView style="@style/SettingsRowSubtitle" android:text="Add home for faster routing" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/rowSetWork" style="@style/SettingsRow" android:paddingStart="0dp" android:paddingEnd="0dp">
+                <FrameLayout style="@style/SettingsIconBadgeBlue">
+                    <ImageView style="@style/SettingsIconSmall" android:src="@drawable/ic_history" app:tint="@color/gm_primary" xmlns:app="http://schemas.android.com/apk/res-auto" />
+                </FrameLayout>
+                <LinearLayout style="@style/SettingsRowText">
+                    <TextView style="@style/SettingsRowTitle" android:text="Set work address" />
+                    <TextView style="@style/SettingsRowSubtitle" android:text="Add work for daily commutes" />
+                </LinearLayout>
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
